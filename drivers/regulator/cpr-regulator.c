@@ -294,6 +294,7 @@ struct cpr_regulator {
 	int		*corner_map;
 	u32		num_corners;
 	int		*quot_adjust;
+	int		*mem_acc_corner_map;
 
 	int			num_adj_cpus;
 	int			online_cpus;
@@ -694,7 +695,8 @@ static int cpr_scale_voltage(struct cpr_regulator *cpr_vreg, int corner,
 			     int new_apc_volt, enum voltage_change_dir dir)
 {
 	int rc = 0, vdd_mx_vmin = 0;
-	int fuse_corner = cpr_vreg->corner_map[corner];
+	int mem_acc_corner = cpr_vreg->mem_acc_corner_map[corner];
+	int apc_corner;
 
 	/* Determine the vdd_mx voltage */
 	if (dir != NO_CHANGE && cpr_vreg->vdd_mx != NULL)
@@ -702,7 +704,7 @@ static int cpr_scale_voltage(struct cpr_regulator *cpr_vreg, int corner,
 
 	if (cpr_vreg->mem_acc_vreg && dir == DOWN)
 		rc = regulator_set_voltage(cpr_vreg->mem_acc_vreg,
-					fuse_corner, fuse_corner);
+					mem_acc_corner, mem_acc_corner);
 
 	if (vdd_mx_vmin && dir == UP) {
 		if (vdd_mx_vmin != cpr_vreg->vdd_mx_vmin)
@@ -714,7 +716,7 @@ static int cpr_scale_voltage(struct cpr_regulator *cpr_vreg, int corner,
 
 	if (!rc && cpr_vreg->mem_acc_vreg && dir == UP)
 		rc = regulator_set_voltage(cpr_vreg->mem_acc_vreg,
-					fuse_corner, fuse_corner);
+					mem_acc_corner, mem_acc_corner);
 
 	if (!rc && vdd_mx_vmin && dir == DOWN) {
 		if (vdd_mx_vmin != cpr_vreg->vdd_mx_vmin)
@@ -4458,7 +4460,9 @@ static int cpr_voltage_plan_init(struct platform_device *pdev,
 static int cpr_mem_acc_init(struct platform_device *pdev,
 				struct cpr_regulator *cpr_vreg)
 {
-	int rc;
+	int rc, size;
+	struct property *prop;
+	char *corner_map_str;
 
 	if (of_find_property(pdev->dev.of_node, "mem-acc-supply", NULL)) {
 		cpr_vreg->mem_acc_vreg = devm_regulator_get(&pdev->dev,
@@ -4472,6 +4476,32 @@ static int cpr_mem_acc_init(struct platform_device *pdev,
 			return rc;
 		}
 	}
+
+	corner_map_str = "qcom,mem-acc-corner-map";
+	prop = of_find_property(pdev->dev.of_node, corner_map_str, NULL);
+	if (!prop) {
+		corner_map_str = "qcom,cpr-corner-map";
+		prop = of_find_property(pdev->dev.of_node, corner_map_str,
+					NULL);
+		if (!prop) {
+			cpr_err(cpr_vreg, "qcom,cpr-corner-map missing\n");
+			return -EINVAL;
+		}
+	}
+
+	size = prop->length / sizeof(u32);
+	cpr_vreg->mem_acc_corner_map = devm_kzalloc(&pdev->dev,
+					sizeof(int) * (size + 1),
+					GFP_KERNEL);
+
+	rc = of_property_read_u32_array(pdev->dev.of_node, corner_map_str,
+			&cpr_vreg->mem_acc_corner_map[CPR_FUSE_CORNER_MIN],
+			size);
+	if (rc) {
+		cpr_err(cpr_vreg, "%s missing, rc = %d\n", corner_map_str, rc);
+		return rc;
+	}
+
 	return 0;
 }
 
