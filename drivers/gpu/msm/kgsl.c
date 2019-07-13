@@ -2779,6 +2779,9 @@ static int kgsl_setup_phys_file(struct kgsl_mem_entry *entry,
 	if (ret)
 		goto err;
 
+	/* put the extra refcount for kgsl_mem_entry_create() */
+	kgsl_mem_entry_put(entry);
+
 	return 0;
 err:
 	return ret;

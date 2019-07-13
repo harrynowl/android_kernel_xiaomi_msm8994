@@ -244,11 +244,10 @@ static int32_t msm_cci_data_queue(struct cci_device *cci_dev,
 		data[i++] = CCI_I2C_WRITE_CMD;
 
 		/* in case of multiple command
-		* MSM_CCI_I2C_WRITE : address is not continuous, so update
-		*			address for a new packet.
-		* MSM_CCI_I2C_WRITE_SEQ : address is continuous, need to keep
-		*			the incremented address for a
-		*			new packet */
+		MSM_CCI_I2C_WRITE : address is not continuous, so update address
+					for a new packet.
+		MSM_CCI_I2C_WRITE_SEQ : address is continuous, need to keep
+					the incremented address for a new packet */
 		if (c_ctrl->cmd == MSM_CCI_I2C_WRITE)
 			reg_addr = i2c_cmd->reg_addr;
 

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2018 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1058,6 +1059,7 @@ static void inv_args_pre(uint32_t sc, remote_arg_t *rpra)
 			dmac_flush_range((char *)end,
 				(char *)end + 1);
 	}
+
 }
 
 static void inv_args(struct smq_invoke_ctx *ctx)
