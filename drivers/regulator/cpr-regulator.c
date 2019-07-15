@@ -1111,6 +1111,18 @@ static int cpr_regulator_list_corner_voltage(struct regulator_dev *rdev,
 		return -EINVAL;
 }
 
+/**
+ * cpr_regulator_get_num_corners() - Return number of conrners configured for the CPR
+ *                                   regulator device
+ * 
+ * @rdev:		                     Regulator device pointer for the cpr-regulator
+ */
+static int cpr_regulator_get_num_corners(struct regulator_dev* rdev)
+{
+	struct cpr_regulator *cpr_vreg = rdev_get_drvdata(rdev);
+	return cpr_vreg->num_corners;
+}
+
 static struct regulator_ops cpr_corner_ops = {
 	.enable			= cpr_regulator_enable,
 	.disable		= cpr_regulator_disable,
@@ -1118,6 +1130,7 @@ static struct regulator_ops cpr_corner_ops = {
 	.set_voltage		= cpr_regulator_set_voltage_op,
 	.get_voltage		= cpr_regulator_get_voltage,
 	.list_corner_voltage	= cpr_regulator_list_corner_voltage,
+	.get_num_corners = cpr_regulator_get_num_corners
 };
 
 #ifdef CONFIG_PM
