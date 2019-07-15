@@ -56,6 +56,8 @@ enum regulator_status {
  * @get_voltage: Return the currently configured voltage for the regulator.
  * @get_voltage_sel: Return the currently configured voltage selector for the
  *                   regulator.
+ * @get_num_corners: Return number of configurable voltage corners assigned to the
+ *                   vreg device
  * @list_voltage: Return one of the supported voltages, in microvolts; zero
  *	if the selector indicates a voltage that is unusable on this system;
  *	or negative errno.  Selectors range from zero to one less than
@@ -101,6 +103,9 @@ enum regulator_status {
  * regulator chip drivers.
  */
 struct regulator_ops {
+
+	/* enumerate number of configurable corners */
+	int (*get_num_corners)(struct regulator_dev*);
 
 	/* enumerate supported voltages */
 	int (*list_voltage) (struct regulator_dev *, unsigned selector);

@@ -2183,6 +2183,48 @@ int regulator_list_voltage(struct regulator *regulator, unsigned selector)
 EXPORT_SYMBOL_GPL(regulator_list_voltage);
 
 /**
+ * regulator_get_num_corners - return the number of corners for this regulator device
+ * @regulator: regulator source
+ * Context: can sleep
+ *
+ * Return number of corners configured for the platform regulator.
+ */
+int regulator_get_num_corners(struct regulator *regulator)
+{
+	struct regulator_dev *rdev = NULL;
+	int ret = 0;
+
+	// Acquire regulator device
+	if (regulator != NULL) {
+		rdev = regulator->rdev;
+	} else {
+		return -EINVAL;
+	}
+
+	// Ensure we have a regulator device
+	if (!rdev) {
+		return -EINVAL;
+	}
+
+
+	mutex_lock(&rdev->mutex);
+	
+	if (rdev->desc->ops->get_num_corners) {
+		// Ensure we have an implementation before getting value
+		ret = rdev->desc->ops->get_num_corners(rdev);
+	} else {
+		// Don't return immediately here otherwise we will retain the mutex lockout
+		ret = -EINVAL;
+	}
+
+	mutex_unlock(&rdev->mutex);
+
+	// Return corners or error code if function is not implemented
+	// for specified regulator device
+ 	return ret;
+}
+
+/**
  * regulator_list_corner_voltage - return the maximum voltage in microvolts that
  *	can be physically configured for the regulator when operating at the
  *	specified voltage corner
