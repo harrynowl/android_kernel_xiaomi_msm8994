@@ -696,7 +696,6 @@ static int cpr_scale_voltage(struct cpr_regulator *cpr_vreg, int corner,
 {
 	int rc = 0, vdd_mx_vmin = 0;
 	int mem_acc_corner = cpr_vreg->mem_acc_corner_map[corner];
-	int apc_corner;
 
 	/* Determine the vdd_mx voltage */
 	if (dir != NO_CHANGE && cpr_vreg->vdd_mx != NULL)
