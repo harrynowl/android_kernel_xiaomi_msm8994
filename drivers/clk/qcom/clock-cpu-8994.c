@@ -808,6 +808,7 @@ struct cpu_clk_8994 {
 	bool hw_low_power_ctrl;
 	struct clk c;
 	struct pm_qos_request req;
+	int num_corners;
 };
 
 static inline struct cpu_clk_8994 *to_cpu_clk_8994(struct clk *c)
@@ -2053,6 +2054,18 @@ static int cpu_clock_8994_driver_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	/* Retrieve the number of corners for the regulator device */
+	a53_clk.num_corners = regulator_get_num_corners(a53_clk.c.vdd_class->regulator[0]);
+	a57_clk.num_corners = regulator_get_num_corners(a57_clk.c.vdd_class->regulator[0]);
+
+	pr_info("Found %d corners for %s\n",
+	        a53_clk.num_corners,
+			a53_clk.c.dbg_name);
+
+	pr_info("Found %d corners for %s\n",
+	        a57_clk.num_corners,
+			a57_clk.c.dbg_name);
+	
 	/* Keep the secondary PLLs enabled forever on V1 */
 	if (!v2) {
 		clk_prepare_enable(&a53_pll1.c);
