@@ -50,6 +50,7 @@ enum regulator_status {
  *
  * @set_voltage: Set the voltage for the regulator within the range specified.
  *               The driver should select the voltage closest to min_uV.
+ * @set_corner_voltage: Set the maximum voltage that can be configured for a corner.
  * @set_voltage_sel: Set the voltage for the regulator using the specified
  *                   selector.
  * @map_voltage: Convert a voltage into a selector
@@ -114,6 +115,7 @@ struct regulator_ops {
 	/* get/set regulator voltage */
 	int (*set_voltage) (struct regulator_dev *, int min_uV, int max_uV,
 			    unsigned *selector);
+	int (*set_corner_voltage) (struct regulator_dev*, int corner, int uv);
 	int (*map_voltage)(struct regulator_dev *, int min_uV, int max_uV);
 	int (*set_voltage_sel) (struct regulator_dev *, unsigned selector);
 	int (*get_voltage) (struct regulator_dev *);

@@ -2647,6 +2647,51 @@ out2:
 EXPORT_SYMBOL_GPL(regulator_set_voltage);
 
 /**
+ * regulator_set_corner_voltage() - Specify the maximum voltage that can be configured
+ * 									for a corner
+ * @regulator: Regulator device
+ * @corner: Target corner
+ * @uv: Microvolts to apply
+ */
+int regulator_set_corner_voltage(struct regulator* regulator, int corner, int uv)
+{
+	struct regulator_dev *rdev = NULL;
+	int ret = 0;
+
+	// Acquire regulator device
+	if (regulator != NULL) {
+		rdev = regulator->rdev;
+	} else {
+		return -EINVAL;
+	}
+
+	// Ensure we have a regulator device
+	if (!rdev) {
+		return -EINVAL;
+	}
+
+
+	mutex_lock(&rdev->mutex);
+
+	if (corner < rdev->constraints->min_uV ||
+	    corner > rdev->constraints->max_uV) {
+		ret = -EINVAL;
+	} else {
+		if (rdev->desc->ops->set_corner_voltage) {
+			ret = rdev->desc->ops->set_corner_voltage(rdev, corner, uv);
+		} else {
+			ret = -EINVAL;
+		}
+	}
+	
+	mutex_unlock(&rdev->mutex);
+
+	// Return corners or error code if function is 
+	// not implemented for specified regulator device
+ 	return ret;
+}
+
+/**
  * regulator_set_voltage_time - get raise/fall time
  * @regulator: regulator source
  * @old_uV: starting voltage in microvolts

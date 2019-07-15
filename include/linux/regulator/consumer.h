@@ -181,6 +181,7 @@ int regulator_list_corner_voltage(struct regulator *regulator, int corner);
 int regulator_is_supported_voltage(struct regulator *regulator,
 				   int min_uV, int max_uV);
 int regulator_set_voltage(struct regulator *regulator, int min_uV, int max_uV);
+int regulator_set_corner_voltage(struct regulator* regulator, int corner, int uv);
 int regulator_set_voltage_time(struct regulator *regulator,
 			       int old_uV, int new_uV);
 int regulator_get_voltage(struct regulator *regulator);
