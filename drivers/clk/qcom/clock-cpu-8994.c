@@ -14,6 +14,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/sysfs.h>
+#include <linux/vmalloc.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/delay.h>
@@ -50,19 +51,27 @@ static struct kobject* clk_8994_a57_kobject;
 /* prototypes */
 static ssize_t get_a53_num_corners(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
 static ssize_t get_a57_num_corners(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
+static ssize_t get_a53_corner_voltages(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
+static ssize_t get_a57_corner_voltages(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
+static ssize_t set_a53_corner_voltages(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t set_a57_corner_voltages(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count);
 
 /* attributes */
 static struct kobj_attribute a53_num_corners_attr = __ATTR(a53_num_corners, S_IRUSR, get_a53_num_corners, NULL);
 static struct kobj_attribute a57_num_corners_attr = __ATTR(a57_num_corners, S_IRUSR, get_a57_num_corners, NULL);
+static struct kobj_attribute a53_vdd_attr = __ATTR(a53_vdd, S_IRUSR | S_IWUSR, get_a53_corner_voltages, set_a53_corner_voltages);
+static struct kobj_attribute a57_vdd_attr = __ATTR(a57_vdd, S_IRUSR | S_IWUSR, get_a57_corner_voltages, set_a57_corner_voltages);
 
 /* attribute lists */
 static struct attribute* a53_attributes[] = {
 	&a53_num_corners_attr.attr,
+	&a53_vdd_attr.attr,
 	NULL
 };
 
 static struct attribute* a57_attributes[] = {
 	&a57_num_corners_attr.attr,
+	&a57_vdd_attr.attr,
 	NULL
 };
 
@@ -1313,6 +1322,92 @@ static ssize_t get_a53_num_corners(struct kobject *kobj, struct kobj_attribute *
 static ssize_t get_a57_num_corners(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	return sprintf(buf, "%d\n", a57_clk.num_corners);
+}
+
+int list_corner_voltage_str(struct cpu_clk_8994* clk, char* buf)
+{
+	int corner;
+	int uv = 0;
+	int ret = 0;
+
+	/* get vdd from regulator at each corner */
+	for (corner = 1; corner <= clk->num_corners; corner++) {
+		uv = regulator_list_corner_voltage(clk->c.vdd_class->regulator[0], corner);
+		ret = sprintf(buf, "%s%d\n", buf, uv);
+
+		if (ret) {
+			pr_warn("%s: error writing value %d to buffer at corner %d\n", clk->c.dbg_name, uv, corner);
+		}
+	}
+
+	/* null terminate */
+	sprintf(buf, "%s%s", buf, "\0");
+
+	return ret;
+}
+
+size_t store_corner_voltage_str(struct cpu_clk_8994* clk, const char* buf)
+{
+	/* values */
+	int ret = 0;
+	unsigned long rate = 0;
+	int level;
+	int corner = 0;
+	int bytes_read = 0;
+	char move[8];
+
+	/* get regulator for this cluster */
+	struct regulator *reg = clk->c.vdd_class->regulator[0];
+
+	/* parse each mv value from buffer */
+	int *voltages = vmalloc(sizeof(int) * clk->num_corners);
+	for (corner = 0; corner < clk->num_corners; corner++)
+	{
+		ret = sscanf(&buf[bytes_read], "%d", &voltages[corner]);
+		ret = sscanf(&buf[bytes_read], "%s", move);
+
+		bytes_read += strlen(move)+1;
+	}
+
+	/* loop each corner */
+	for (corner = 1; corner <= clk->num_corners; corner++)
+	{
+		rate = clk->c.fmax[corner];
+		level = find_vdd_level(&clk->c, rate);
+
+		/* apply voltage to corner */
+		ret = regulator_set_corner_voltage(reg, corner, voltages[corner-1]);
+
+		if (ret) {
+			pr_warn("error applying %duV at corner %d\n", voltages[corner-1], corner);
+		}
+	}
+
+	/* clear memory allocated to func */
+	vfree(voltages);
+
+	/* return bytes parsed from buffer */
+	return bytes_read;
+}
+
+static ssize_t get_a53_corner_voltages(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return list_corner_voltage_str(&a53_clk, buf);
+}
+
+static ssize_t get_a57_corner_voltages(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return list_corner_voltage_str(&a57_clk, buf);
+}
+
+static ssize_t set_a53_corner_voltages(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	return store_corner_voltage_str(&a53_clk, buf);
+}
+
+static ssize_t set_a57_corner_voltages(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	return store_corner_voltage_str(&a57_clk, buf);
 }
 
 static int of_get_fmax_vdd_class(struct platform_device *pdev, struct clk *c,
