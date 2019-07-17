@@ -1111,6 +1111,40 @@ static int cpr_regulator_list_corner_voltage(struct regulator_dev *rdev,
 		return -EINVAL;
 }
 
+static int cpr_limit_open_loop_voltage(struct cpr_regulator *cpr_vreg); /* fw decl for use in cpr_regulator_set_corner_voltage() */
+
+/**
+ * cpr_regulator_set_corner_voltage() - return the ceiling voltage mapped to
+ *			the specified voltage corner
+ * @rdev:		Regulator device pointer for the cpr-regulator
+ * @corner:		Voltage corner
+ *
+ * This function is passed as a callback function into the regulator ops that
+ * are registered for each cpr-regulator device.
+ *
+ * Return: voltage value in microvolts or -EINVAL if the corner is out of range
+ */
+static int cpr_regulator_set_corner_voltage(struct regulator_dev *rdev, int corner, int uv)
+{
+	struct cpr_regulator *cpr_vreg = rdev_get_drvdata(rdev);
+	int diff = 0;
+
+	if (corner >= CPR_CORNER_MIN && corner <= cpr_vreg->num_corners) {
+		mutex_lock(&cpr_vreg->cpr_mutex);
+		diff = cpr_vreg->ceiling_volt[corner] - cpr_vreg->floor_volt[corner];
+		cpr_vreg->ceiling_volt[corner] = uv;
+		cpr_vreg->floor_volt[corner] = uv - diff;
+		cpr_limit_open_loop_voltage(cpr_vreg);
+		mutex_unlock(&cpr_vreg->cpr_mutex);
+		cpr_info(cpr_vreg, "applied %duV at corner ceiling %d\n", uv, corner);
+		cpr_info(cpr_vreg, "applied %duV at corner floor %d\n", uv - diff, corner);
+		return 0;
+	}
+	else {
+		return -EINVAL;
+	}
+}
+
 /**
  * cpr_regulator_get_num_corners() - Return number of conrners configured for the CPR
  *                                   regulator device
@@ -1130,6 +1164,7 @@ static struct regulator_ops cpr_corner_ops = {
 	.set_voltage		= cpr_regulator_set_voltage_op,
 	.get_voltage		= cpr_regulator_get_voltage,
 	.list_corner_voltage	= cpr_regulator_list_corner_voltage,
+	.set_corner_voltage = cpr_regulator_set_corner_voltage,
 	.get_num_corners = cpr_regulator_get_num_corners
 };
 
@@ -1943,10 +1978,14 @@ static int cpr_limit_open_loop_voltage(struct cpr_regulator *cpr_vreg)
 	int i;
 
 	for (i = CPR_CORNER_MIN; i <= cpr_vreg->num_corners; i++) {
-		if (cpr_vreg->open_loop_volt[i] > cpr_vreg->ceiling_volt[i])
+		if (cpr_vreg->open_loop_volt[i] > cpr_vreg->ceiling_volt[i]) {
+			cpr_info(cpr_vreg, "applying ceiling voltage %duV to open loop voltage (currently %duV) at corner %d\n", cpr_vreg->ceiling_volt[i], cpr_vreg->open_loop_volt[i], i);
 			cpr_vreg->open_loop_volt[i] = cpr_vreg->ceiling_volt[i];
-		else if (cpr_vreg->open_loop_volt[i] < cpr_vreg->floor_volt[i])
+		}
+		else if (cpr_vreg->open_loop_volt[i] < cpr_vreg->floor_volt[i]) {
+			cpr_info(cpr_vreg, "applying floor voltage %duV to open loop voltage (currently %duV) at corner %d\n", cpr_vreg->floor_volt[i], cpr_vreg->open_loop_volt[i], i);
 			cpr_vreg->open_loop_volt[i] = cpr_vreg->floor_volt[i];
+		}
 	}
 
 	return 0;
