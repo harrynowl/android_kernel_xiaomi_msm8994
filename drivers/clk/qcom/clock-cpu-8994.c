@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,6 +13,7 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/sysfs.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/delay.h>
@@ -38,6 +39,41 @@
 
 #include "clock.h"
 #include "vdd-level-8994.h"
+
+/* parent sysfs node */
+static struct kobject* clk_8994_kobject;
+
+/* top-level nodes */
+static struct kobject* clk_8994_a53_kobject;
+static struct kobject* clk_8994_a57_kobject;
+
+/* prototypes */
+static ssize_t get_a53_num_corners(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
+static ssize_t get_a57_num_corners(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
+
+/* attributes */
+static struct kobj_attribute a53_num_corners_attr = __ATTR(a53_num_corners, S_IRUSR, get_a53_num_corners, NULL);
+static struct kobj_attribute a57_num_corners_attr = __ATTR(a57_num_corners, S_IRUSR, get_a57_num_corners, NULL);
+
+/* attribute lists */
+static struct attribute* a53_attributes[] = {
+	&a53_num_corners_attr.attr,
+	NULL
+};
+
+static struct attribute* a57_attributes[] = {
+	&a57_num_corners_attr.attr,
+	NULL
+};
+
+/* attribute groups */
+static struct attribute_group a53_attribute_group = {
+	.attrs = a53_attributes,
+};
+
+static struct attribute_group a57_attribute_group = {
+	.attrs = a57_attributes,
+};
 
 #define A53OFFSET (56)
 
@@ -1269,6 +1305,16 @@ static struct clk_lookup cpu_clocks_8994_v2[] = {
 	CLK_LIST(cpu_debug_mux),
 };
 
+static ssize_t get_a53_num_corners(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", a53_clk.num_corners);
+}
+
+static ssize_t get_a57_num_corners(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", a57_clk.num_corners);
+}
+
 static int of_get_fmax_vdd_class(struct platform_device *pdev, struct clk *c,
 								char *prop_name)
 {
@@ -2159,6 +2205,25 @@ static struct platform_driver cpu_clock_8994_driver = {
 /* CPU devices are not currently available in arch_initcall */
 static int __init cpu_clock_8994_init_opp(void)
 {
+	int ret = 0;
+
+	/* configure the sysfs interface for controlling the
+	   paramemeters for our a53 and a57 clusters */
+	clk_8994_kobject = kobject_create_and_add("clk_cpu_8994", kernel_kobj);
+	clk_8994_a53_kobject = kobject_create_and_add("a53_clk", clk_8994_kobject);
+	clk_8994_a57_kobject = kobject_create_and_add("a57_clk", clk_8994_kobject);
+
+	/* apply attribute groups to each item */
+	ret = sysfs_create_group(clk_8994_a53_kobject, &a53_attribute_group);
+	if (ret) {
+		kobject_put(clk_8994_a53_kobject);
+	}
+
+	ret = sysfs_create_group(clk_8994_a57_kobject, &a57_attribute_group);
+	if (ret) {
+		kobject_put(clk_8994_a57_kobject);
+	}
+
 	if (cpu_clock_8994_dev)
 		populate_opp_table(cpu_clock_8994_dev);
 	return 0;
@@ -2173,6 +2238,11 @@ arch_initcall(cpu_clock_8994_init);
 
 static void __exit cpu_clock_8994_exit(void)
 {
+	/* de-register the sysfs interface created for this device */
+	kobject_put(clk_8994_a53_kobject);
+	kobject_put(clk_8994_a57_kobject);
+	kobject_put(clk_8994_kobject);
+
 	platform_driver_unregister(&cpu_clock_8994_driver);
 }
 module_exit(cpu_clock_8994_exit);
